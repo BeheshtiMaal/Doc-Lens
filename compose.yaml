@@ -1,0 +1,20 @@
+name: doclens
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: doclens
+      POSTGRES_PASSWORD: doclens_local
+      POSTGRES_DB: doclens
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - doclens_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U doclens -d doclens"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+volumes:
+  doclens_postgres:
