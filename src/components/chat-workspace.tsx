@@ -289,10 +289,13 @@ export function ChatWorkspace() {
             {loading ? <ScreenNotice>Opening your chat…</ScreenNotice> : messages.map((message, index) => <AnswerMessage key={message.id} message={message} question={index > 0 && messages[index - 1].role === "user" ? messages[index - 1].content : undefined} onRegenerate={sourceRemoved ? undefined : (question) => void sendQuestion(question)} busy={!canSend} />)}
             {pendingAnswer && <>
               <AnswerMessage message={{ id: "pending-question", role: "user", content: pendingAnswer.question, citations: [] }} />
-              <Message from="assistant" className="chat-message answer-message" aria-label="DocLens said"><div className="message-bubble" dir="auto">
-                {!pendingAnswer.tokens.length ? <div className="answer-waiting" role="status"><LensMark className="waiting-lens" /><span>{pendingAnswer.phase === "retrieving" ? "Finding the right passages…" : "Writing your answer…"}</span></div> :
-                  <div data-testid="streaming-answer" aria-live="off" className="streaming-text">{pendingAnswer.tokens.map((token, index) => /^\s+$/u.test(token) ? token : <span key={index} className="answer-token-dissolve">{token}</span>)}<span className="stream-caret" aria-hidden="true" /></div>}
-              </div></Message>
+              <Message from="assistant" className="chat-message answer-message" aria-label="DocLens said">
+                <div className="answer-avatar" aria-hidden="true"><LensMark className="answer-avatar-mark" /></div>
+                <div className="answer-body"><div className="message-bubble answer-copy" dir="auto">
+                  {!pendingAnswer.tokens.length ? <div className="answer-waiting" role="status"><span>{pendingAnswer.phase === "retrieving" ? "Finding the right passages…" : "Writing your answer…"}</span></div> :
+                    <div data-testid="streaming-answer" aria-live="off" className="streaming-text">{pendingAnswer.tokens.map((token, index) => /^\s+$/u.test(token) ? token : <span key={index} className="answer-token-dissolve">{token}</span>)}<span className="stream-caret" aria-hidden="true" /></div>}
+                </div></div>
+              </Message>
             </>}
             {sourceRemoved && <button className="new-chat-pill history-new-chat" onClick={newConversation}><PlusIcon />New chat</button>}
           </ConversationContent>

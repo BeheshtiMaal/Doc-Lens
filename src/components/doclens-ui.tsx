@@ -89,22 +89,24 @@ export function AnswerMessage({ message, question, onRegenerate, busy }: {
   message: ChatMessage; question?: string; onRegenerate?: (question: string) => void; busy?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  return <Message from={message.role} className={cn("chat-message", message.role === "user" ? "question-message" : "answer-message")} aria-label={message.role === "user" ? "You said" : "DocLens said"}>
-    <div className="message-bubble" dir="auto">
-      {message.role === "user" ? <p className="whitespace-pre-wrap">{message.content}</p> : <MessageResponse>{message.content}</MessageResponse>}
+  const answerContent = <div className="answer-body">
+    <div className="message-bubble answer-copy" dir="auto"><MessageResponse>{message.content}</MessageResponse></div>
+    {message.citations.length > 0 && <div className="source-chips" aria-label="Answer citations">{message.citations.map((citation, index) => <Popover.Root key={citation.chunkId + index}>
+      <Popover.Trigger asChild><button className={cn("source-chip", citation.sourceUnavailable && "source-unavailable")} title={citation.sourceUnavailable ? "Document removed" : citation.label}>{citation.pageNumber ? "p. " + citation.pageNumber : citation.label}<ChevronRight size={11} /></button></Popover.Trigger>
+      <Popover.Portal><Popover.Content className="source-popover" sideOffset={10} collisionPadding={18} aria-label={citation.label}>
+        <div className="source-popover-title"><strong>{citation.label}{citation.pageNumber ? " · page " + citation.pageNumber : ""}</strong><Popover.Close className="icon-button" aria-label="Close source"><X size={15} /></Popover.Close></div>
+        <p dir="auto">{citation.passage && !citation.sourceUnavailable ? <mark>{citation.passage}</mark> : "The source file was removed, so this passage is unavailable."}</p>
+        <Popover.Arrow className="popover-arrow" />
+      </Popover.Content></Popover.Portal>
+    </Popover.Root>)}</div>}
+    <div className="message-actions"><button className="icon-button" aria-label={copied ? "Answer copied" : "Copy answer"} title="Copy answer" onClick={async () => { try { await navigator.clipboard.writeText(message.content); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); } }}>{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+      {question && onRegenerate && <button className="icon-button" aria-label="Regenerate answer" title="Regenerate answer" disabled={busy} onClick={() => onRegenerate(question)}><RotateCcw size={14} /></button>}
     </div>
-    {message.role === "assistant" && <>
-      {message.citations.length > 0 && <div className="source-chips" aria-label="Answer citations">{message.citations.map((citation, index) => <Popover.Root key={citation.chunkId + index}>
-        <Popover.Trigger asChild><button className={cn("source-chip", citation.sourceUnavailable && "source-unavailable")} title={citation.sourceUnavailable ? "Document removed" : citation.label}>{citation.pageNumber ? "p. " + citation.pageNumber : citation.label}<ChevronRight size={11} /></button></Popover.Trigger>
-        <Popover.Portal><Popover.Content className="source-popover" sideOffset={10} collisionPadding={18} aria-label={citation.label}>
-          <div className="source-popover-title"><strong>{citation.label}{citation.pageNumber ? " · page " + citation.pageNumber : ""}</strong><Popover.Close className="icon-button" aria-label="Close source"><X size={15} /></Popover.Close></div>
-          <p dir="auto">{citation.passage && !citation.sourceUnavailable ? <mark>{citation.passage}</mark> : "The source file was removed, so this passage is unavailable."}</p>
-          <Popover.Arrow className="popover-arrow" />
-        </Popover.Content></Popover.Portal>
-      </Popover.Root>)}</div>}
-      <div className="message-actions"><button className="icon-button" aria-label={copied ? "Answer copied" : "Copy answer"} title="Copy answer" onClick={async () => { try { await navigator.clipboard.writeText(message.content); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setCopied(false); } }}>{copied ? <Check size={14} /> : <Copy size={14} />}</button>
-        {question && onRegenerate && <button className="icon-button" aria-label="Regenerate answer" title="Regenerate answer" disabled={busy} onClick={() => onRegenerate(question)}><RotateCcw size={14} /></button>}
-      </div>
+  </div>;
+  return <Message from={message.role} className={cn("chat-message", message.role === "user" ? "question-message" : "answer-message")} aria-label={message.role === "user" ? "You said" : "DocLens said"}>
+    {message.role === "user" ? <div className="message-bubble" dir="auto"><p className="whitespace-pre-wrap">{message.content}</p></div> : <>
+      <div className="answer-avatar" aria-hidden="true"><LensMark className="answer-avatar-mark" /></div>
+      {answerContent}
     </>}
   </Message>;
 }
