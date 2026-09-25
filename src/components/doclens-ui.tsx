@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Dialog as Modal, DropdownMenu, Popover } from "radix-ui";
-import { Check, Copy, ChevronRight, LockKeyhole, MoreHorizontal, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, Copy, ChevronRight, LockKeyhole, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Message, MessageResponse } from "@/components/ai-elements/message";
 import { cn } from "@/lib/utils";
 import { dateGroup, shortFilename, type ChatMessage, type ConversationRecord } from "@/components/doclens-types";
@@ -50,9 +50,12 @@ export function WorkspaceSidebar({ conversations, activeId, busy, hasFiles, onSe
   onSelect: (id: string) => void; onNew: () => void; onRename: (chat: ConversationRecord) => void;
   onDelete: (id: string) => Promise<void>; mobileOpen: boolean; setMobileOpen: (open: boolean) => void;
 }) {
-  const [expanded, setExpanded] = useState(false); const [confirm, setConfirm] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false); const [collapsed, setCollapsed] = useState(false); const [confirm, setConfirm] = useState<string | null>(null);
   const content = <>
+    <div className="sidebar-header">
     <button className="sidebar-brand" aria-label="DocLens — new chat" disabled={busy} onClick={() => { onNew(); setMobileOpen(false); }}><LensMark /><span className="wordmark">DocLens</span></button>
+      <button type="button" className="icon-button sidebar-collapse-toggle" aria-label="Collapse sidebar" title="Collapse sidebar" aria-expanded={!collapsed} onClick={() => setCollapsed(true)}><PanelLeftClose size={18} /></button>
+    </div>
     <button className="new-chat-pill" disabled={busy || !hasFiles} title="New chat" onClick={() => { onNew(); setMobileOpen(false); }}><Plus size={18} /><span>New chat</span></button>
     <nav aria-label="Chat history" className="chat-history">
       {conversations.length === 0 && <p className="history-empty">Your chats will appear here.</p>}
@@ -73,8 +76,9 @@ export function WorkspaceSidebar({ conversations, activeId, busy, hasFiles, onSe
     <div className="sidebar-footer"><span className="privacy-dot" /><span>Private, for this session</span></div>
   </>;
   return <>
-    <aside onMouseLeave={() => setExpanded(false)} className={cn("workspace-sidebar grain", expanded && "rail-expanded")}>
-      <button className="rail-brand" aria-label="Expand chat history" onMouseEnter={() => setExpanded(true)} onClick={() => setExpanded(!expanded)}><LensMark /></button>
+    <aside onMouseLeave={() => setExpanded(false)} className={cn("workspace-sidebar grain", collapsed && "sidebar-collapsed", expanded && "rail-expanded")}>
+      <button className="rail-brand" aria-label={collapsed ? "Expand sidebar" : "Expand chat history"} title={collapsed ? "Expand sidebar" : "Expand chat history"} onMouseEnter={() => setExpanded(true)} onClick={() => { if (collapsed) setCollapsed(false); else setExpanded(!expanded); }}><LensMark /></button>
+      <button type="button" className="icon-button sidebar-compact-toggle" aria-label="Expand sidebar" title="Expand sidebar" aria-expanded={!collapsed} onClick={() => setCollapsed(false)}><PanelLeftOpen size={18} /></button>
       {content}
     </aside>
     <Modal.Root open={mobileOpen} onOpenChange={setMobileOpen}><Modal.Portal><Modal.Overlay className="mobile-sidebar-scrim" /><Modal.Content className="mobile-sidebar grain">
