@@ -76,7 +76,7 @@
 .history-copy>span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .history-copy small { color:var(--text-2); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; }
 .history-lock { flex-shrink:0; color:var(--text-2); }
-.history-initial,.rail-brand,.sidebar-compact-toggle { display:none; }
+.history-initial,.rail-brand,.workspace-sidebar .sidebar-compact-toggle { display:none; }
 .sidebar-footer { display:flex; align-items:center; justify-content:center; gap:8px; color:var(--text-2); font-size:11.5px; padding-top:16px; }
 .privacy-dot { width:5px; height:5px; border-radius:50%; background:var(--cherry-300); opacity:.65; }
 .icon-button { display:inline-flex; flex:none; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; color:var(--text-2); }
