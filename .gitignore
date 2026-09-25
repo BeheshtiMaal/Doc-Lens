@@ -11,3 +11,7 @@ test-results/
 playwright-report/
 npm-debug.log*
 .DS_Store
+.vercel/
+.turbo/
+*.log
+Thumbs.db
