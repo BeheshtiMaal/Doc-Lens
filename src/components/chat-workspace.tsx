@@ -16,6 +16,15 @@ import { cn } from "@/lib/utils";
 type PendingAnswer = { question: string; tokens: string[]; phase: "retrieving" | "generating" };
 const NEW_CONVERSATION = "new";
 
+type DocumentMention = { start: number; end: number; query: string };
+
+function findDocumentMention(value: string, caret: number): DocumentMention | null {
+  const beforeCaret = value.slice(0, caret);
+  const match = /(?:^|\s)@([^@\n]*)$/u.exec(beforeCaret);
+  if (!match || match[1].length > 100) return null;
+  return { start: caret - match[1].length - 1, end: caret, query: match[1].trim().toLocaleLowerCase() };
+}
+
 async function workspaceRequest<T>(session: WorkspaceSession, path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set("authorization", "Bearer " + session.accessToken);
@@ -38,6 +47,8 @@ export function ChatWorkspace() {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<ChatModelId>(OPENAI_CHAT_MODEL_ID);
   const [draft, setDraft] = useState("");
+  const [mention, setMention] = useState<DocumentMention | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [pendingAnswer, setPendingAnswer] = useState<PendingAnswer | null>(null);
@@ -57,6 +68,7 @@ export function ChatWorkspace() {
   const uploadInput = useRef<HTMLInputElement>(null);
   const uploadTrigger = useRef<HTMLButtonElement>(null);
   const promptTextarea = useRef<HTMLTextAreaElement>(null);
+  const mentionListRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
   const uploadLock = useRef(false);
   const answerAbort = useRef<AbortController | null>(null);
@@ -130,23 +142,52 @@ export function ChatWorkspace() {
   useEffect(() => () => answerAbort.current?.abort(), []);
 
   const selectedFile = files.find((file) => file.id === selectedFileId) ?? null;
+  const readyFiles = files.filter((file) => file.status === "embedded");
   const sourceRemoved = Boolean(activeConversation?.sourceRemovedAt);
   const hasChat = Boolean(activeConversation || messages.length || pendingAnswer);
-  const canSend = status === "ready" && selectedFile?.status === "embedded" && !sourceRemoved && !loading && !sending;
+  const canType = status === "ready" && readyFiles.length > 0 && !sourceRemoved && !loading && !sending;
+  const canSend = canType && selectedFile?.status === "embedded";
+  const mentionFiles = mention
+    ? readyFiles.filter((file) => file.filename.toLocaleLowerCase().includes(mention.query)).slice(0, 8)
+    : [];
+  const activeMentionIndex = Math.min(mentionIndex, Math.max(mentionFiles.length - 1, 0));
+  const activeMentionId = mentionFiles[activeMentionIndex]?.id;
+  useEffect(() => {
+    if (mention && activeMentionId) {
+      mentionListRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    }
+  }, [mention, activeMentionId]);
   const processing = uploading || files.some((file) => file.status === "pending" || file.status === "chunked");
 
   function newConversation() {
     if (sending) return;
-    requestSerial.current += 1; setActiveConversation(null); setMessages([]); setError(null); setLoading(false); setDraft("");
+    requestSerial.current += 1; setActiveConversation(null); setMessages([]); setError(null); setLoading(false); setDraft(""); setMention(null);
     if (session) sessionStorage.setItem("doclens.activeConversation:" + session.workspaceId, NEW_CONVERSATION);
   }
   function selectFile(file: FileRecord) {
     if (sending || file.status !== "embedded" || !session) return;
     if (activeConversation?.fileId !== file.id) newConversation();
     setSelectedFileId(file.id);
+    setMention(null);
     sessionStorage.setItem("doclens.activeFile:" + session.workspaceId, file.id);
     setDocumentsOpen(false);
     window.setTimeout(() => promptTextarea.current?.focus(), reducedMotion ? 130 : 530);
+  }
+  function updateMention(value: string, caret: number) {
+    setMention(findDocumentMention(value, caret));
+    setMentionIndex(0);
+  }
+  function selectMentionFile(file: FileRecord) {
+    if (!mention || !session) return;
+    const nextDraft = draft.slice(0, mention.start) + draft.slice(mention.end);
+    const nextCaret = mention.start;
+    selectFile(file);
+    setDraft(nextDraft);
+    setMention(null);
+    window.requestAnimationFrame(() => {
+      promptTextarea.current?.focus();
+      promptTextarea.current?.setSelectionRange(nextCaret, nextCaret);
+    });
   }
   function clearFile() {
     newConversation(); setSelectedFileId(null);
@@ -304,12 +345,47 @@ export function ChatWorkspace() {
         {error && <div className="workspace-error" role="alert">{error}<button className="icon-button" aria-label="Dismiss error" onClick={() => setError(null)}><X size={14} /></button></div>}
         <div className="composer-glass-zone" aria-hidden="true" />
         <motion.div layout={!reducedMotion} className="composer-position" transition={layoutTransition}>
-          {selectedFile && !sourceRemoved && status !== "ended" ? <form className={cn("composer-pill", draft.includes("\n") && "is-multiline")} onSubmit={(event) => { event.preventDefault(); void sendQuestion(draft); }}>
-            <div className="document-chip"><button type="button" title={selectedFile.filename} onClick={() => setDocumentsOpen(true)}><FileText size={14} /><bdi>{shortFilename(selectedFile.filename, 24)}</bdi></button><button type="button" aria-label="Clear selected document" disabled={sending} onClick={clearFile}><X size={12} /></button></div>
-            <textarea ref={promptTextarea} aria-label="Ask a question about your document" dir="auto" value={draft} rows={1} disabled={!canSend} placeholder={selectedFile.status !== "embedded" ? "Reading the document…" : hasChat ? "Ask a follow-up" : "Ask about " + shortFilename(selectedFile.filename, 24)} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (canSend && draft.trim()) void sendQuestion(draft); } }} />
-            {sending ? <button className="send-button" type="button" aria-label="Stop answer" onClick={() => answerAbort.current?.abort()}><Square size={15} fill="currentColor" /></button> : draft.trim() && <button className="send-button" aria-label="Send question" disabled={!canSend}><ArrowUp size={20} /></button>}
+          {(selectedFile || readyFiles.length > 0) && !sourceRemoved && status !== "ended" ? <form className={cn("composer-pill", draft.includes("\n") && "is-multiline")} onSubmit={(event) => { event.preventDefault(); if (!mention) void sendQuestion(draft); }}>
+            {mention && <div ref={mentionListRef} id="document-mention-list" className="document-mention-list" role="listbox" aria-label="Documents">
+              <div className="document-mention-heading">Choose a document</div>
+              {mentionFiles.length ? mentionFiles.map((file, index) =>
+                <button key={file.id} id={"document-mention-" + file.id} type="button" role="option" aria-selected={index === activeMentionIndex} tabIndex={-1}
+                  onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setMentionIndex(index)} onClick={() => selectMentionFile(file)}>
+                  <FileText size={16} aria-hidden="true" />
+                  <span className="document-mention-name" dir="auto">{file.filename}</span>
+                  {selectedFileId === file.id && <span className="document-mention-current">Selected</span>}
+                </button>) : <div className="document-mention-empty" role="status">No matching documents</div>}
+            </div>}
+            {selectedFile && <div className="document-chip"><button type="button" title={selectedFile.filename} onClick={() => setDocumentsOpen(true)}><FileText size={14} /><bdi>{shortFilename(selectedFile.filename, 24)}</bdi></button><button type="button" aria-label="Clear selected document" disabled={sending} onClick={clearFile}><X size={12} /></button></div>}
+            <textarea ref={promptTextarea} role="combobox" aria-label={selectedFile ? "Ask a question about your document" : "Ask a question; type @ to choose a document"}
+              aria-autocomplete="list" aria-haspopup="listbox" aria-expanded={Boolean(mention)} aria-controls={mention ? "document-mention-list" : undefined}
+              aria-activedescendant={mention && mentionFiles.length ? "document-mention-" + mentionFiles[activeMentionIndex].id : undefined}
+              dir="auto" value={draft} rows={1} disabled={!canType}
+              placeholder={selectedFile?.status === "embedded" ? hasChat ? "Ask a follow-up or type @ to switch documents" : "Ask about " + shortFilename(selectedFile.filename, 24) : "Ask a question · type @ to choose a document"}
+              onChange={(event) => { setDraft(event.currentTarget.value); updateMention(event.currentTarget.value, event.currentTarget.selectionStart); }}
+              onClick={(event) => updateMention(draft, event.currentTarget.selectionStart)}
+              onKeyUp={(event) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) updateMention(draft, event.currentTarget.selectionStart); }}
+              onBlur={() => setMention(null)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return;
+                if (mention) {
+                  if (event.key === "Escape") { event.preventDefault(); setMention(null); return; }
+                  if ((event.key === "ArrowDown" || event.key === "ArrowUp") && mentionFiles.length) {
+                    event.preventDefault();
+                    setMentionIndex((index) => (index + (event.key === "ArrowDown" ? 1 : mentionFiles.length - 1)) % mentionFiles.length);
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (mentionFiles.length) selectMentionFile(mentionFiles[activeMentionIndex]);
+                    return;
+                  }
+                }
+                if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (canSend && draft.trim()) void sendQuestion(draft); }
+              }} />
+            {sending ? <button className="send-button" type="button" aria-label="Stop answer" onClick={() => answerAbort.current?.abort()}><Square size={15} fill="currentColor" /></button> : draft.trim() && <button className="send-button" aria-label="Send question" disabled={!canSend || Boolean(mention)}><ArrowUp size={20} /></button>}
           </form> : <button type="button" className="composer-pill locked-composer" disabled={sourceRemoved || loading || status !== "ready"} onClick={() => setDocumentsOpen(true)}>{sourceRemoved ? <LockKeyhole size={17} /> : null}<span>{lockedText}</span>{!sourceRemoved && <Upload size={18} />}</button>}
-          {selectedFile && !sourceRemoved && <div className="composer-meta"><select aria-label="Chat model" value={modelId} disabled={sending} onChange={(event) => { if (isChatModelId(event.target.value)) setModelId(event.target.value); }}><option value={OPENAI_CHAT_MODEL_ID}>GPT-4.1 mini</option><option value={ANTHROPIC_CHAT_MODEL_ID}>Claude Haiku 4.5</option></select><span>Answers from your document</span></div>}
+          {!sourceRemoved && (selectedFile ? <div className="composer-meta"><select aria-label="Chat model" value={modelId} disabled={sending} onChange={(event) => { if (isChatModelId(event.target.value)) setModelId(event.target.value); }}><option value={OPENAI_CHAT_MODEL_ID}>GPT-4.1 mini</option><option value={ANTHROPIC_CHAT_MODEL_ID}>Claude Haiku 4.5</option></select><span>Answers from your document</span></div> : readyFiles.length > 0 && <div className="composer-meta document-mention-hint"><span>Type @ to choose a document before sending.</span></div>)}
         </motion.div>
       </div>
       <button ref={uploadTrigger} className={cn("upload-tab", hint && !hasChat && !files.length && "first-visit-hint")} title="Documents" aria-label="Upload and choose documents" aria-expanded={documentsOpen} aria-haspopup="dialog" disabled={status !== "ready"} onClick={() => { setUploadError(null); setUploadNotice(null); setDocumentsOpen(true); }}><Upload size={20} />{processing && <span className="processing-dot" />}</button>
