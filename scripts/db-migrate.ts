@@ -4,7 +4,7 @@ import { loadDatabaseConfig } from "./database-config";
 
 async function main() {
   const client = new Client({
-    connectionString: loadDatabaseConfig().DATABASE_URL,
+    connectionString: process.env.DATABASE_URL_UNPOOLED || loadDatabaseConfig().DATABASE_URL,
     connectionTimeoutMillis: 5000,
   });
   try {

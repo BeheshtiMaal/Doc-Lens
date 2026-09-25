@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
 import { HttpError } from "@/lib/errors";
@@ -84,6 +83,7 @@ export async function parseDocument(filename: string, bytes: Uint8Array): Promis
     pages = [{ text: decodeText(bytes) }];
   } else if (extension === ".pdf") {
     if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new HttpError(422, "This file is not a valid PDF.");
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: bytes });
     try {
       const result = await parser.getText({ pageJoiner: "\n" });

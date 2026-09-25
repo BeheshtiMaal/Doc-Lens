@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "node scripts/run-tool.mjs next dev",
     "build": "node scripts/run-tool.mjs next build",
+    "build:vercel": "node scripts/vercel-build.mjs",
     "start": "node scripts/run-tool.mjs next start",
     "lint": "eslint .",
     "typecheck": "node scripts/run-tool.mjs next typegen && tsc --noEmit",

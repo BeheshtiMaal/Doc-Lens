@@ -12,7 +12,12 @@ export { HttpError } from "@/lib/errors";
 export function jsonError(error: unknown) {
   if (error instanceof HttpError) return NextResponse.json({ error: error.message }, { status: error.status });
   if (error instanceof WorkspaceAccessError) return NextResponse.json({ error: "Workspace unavailable or expired." }, { status: 401 });
-  console.error("Request failed.");
+  const configMessage = error instanceof Error && error.message.startsWith("Invalid server configuration:")
+    ? error.message
+    : null;
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+    && /^[A-Z0-9_]{2,20}$/.test(error.code) ? error.code : null;
+  console.error(configMessage ?? (code ? `Request failed (${code}).` : "Request failed."));
   return NextResponse.json({ error: "The request could not be completed." }, { status: 500 });
 }
 
