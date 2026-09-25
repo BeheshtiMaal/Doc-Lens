@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["pg", "pdf-parse", "mammoth", "word-extractor"],
+  serverExternalPackages: ["pg", "pdf-parse", "@napi-rs/canvas", "mammoth", "word-extractor"],
   outputFileTracingIncludes: {
     "/api/files": [
       "./node_modules/@napi-rs/canvas/**/*",
